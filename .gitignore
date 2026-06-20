@@ -1,0 +1,5 @@
+history.db
+output/
+__pycache__/
+*.pyc
+.env
