@@ -4,6 +4,7 @@
 
 echo "=== macOS ==="
 sw_vers 2>/dev/null || echo "sw_vers なし"
+echo "※ mlx は macOS 14 (Sonoma) 以上が必要"
 echo
 echo "=== チップ / アーキテクチャ ==="
 sysctl -n machdep.cpu.brand_string 2>/dev/null

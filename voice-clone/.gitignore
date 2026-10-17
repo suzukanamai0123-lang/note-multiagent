@@ -1,0 +1,8 @@
+.venv/
+.uv-python/
+.uv-cache/
+hf-home/
+outputs/
+refs/
+logs/
+model.txt
