@@ -31,6 +31,8 @@ Mac（Apple Silicon）のローカルで動かす。費用はかからない。
   env.sh            保存先をこのフォルダ内に向ける設定（HF_HOME, uv の Python・キャッシュ）
   run.sh            生成コマンド（オフラインで実行）
   ref.sh            参照音声の切り出し＋文字起こし下書き（scripts/make_ref.py）
+  clips.sh          長い録音から参照クリップを自動で切り出す（scripts/make_clips.py）
+  irodori.sh        Irodori-TTS で生成（irodori.py）
   pick.sh           文ごとに似かたスコア最上位を選び、参照音声ごとに1本へつないで再生（scripts/pick_best.py）
   clone.py          生成スクリプト本体
   scripts/
@@ -123,6 +125,24 @@ cd ~/suzukana-voice-clone
 
 再生: `afplay outputs/xxx_compare.wav`、または Finder でクイックルック（スペースキー）。
 
+## Irodori-TTS（日本語専用モデル）を使う
+
+Qwen3-TTS は日本語のアクセントが不自然になりやすいため、同じ mlx-audio に入っている日本語専用の
+[Irodori-TTS](https://github.com/Aratako/Irodori-TTS)（MLX 版 `mlx-community/Irodori-TTS-v4.1-Small-8bit`）も使えるようにした。
+
+- 参照音声の文字起こしは不要。複数クリップ（合計120秒まで）をまとめて声の特徴として使う
+- `--instruct "落ち着いた語り口で…"` のように話し方を文章で指定できる
+- 速さは `--speed`（モデルの長さ予測を調整）
+- 似かたスコアは出ない（話者エンコーダが無いため）
+
+```bash
+./clips.sh --src ~/Downloads/録音.m4a --name calm          # 長い録音から音割れのないクリップを自動で切り出す（refs/calm_01.wav …）
+./irodori.sh --ref "calm_*" --text-file 台本.txt --join-lines --max-chars 28
+```
+
+初回はモデルのサイズとライセンスを表示して、y/N で確認してからダウンロードする。
+**ライセンスはダウンロード時の表示と Hugging Face のモデルカードで必ず確認すること**（Irodori-TTS の mlx-audio 側 README には MIT と書かれているが、v4.1 の重みのライセンスはこの環境からは確認できていない）。
+
 ## 試作の評価（Phase 5 の判断材料）
 
 評価用の5文は `samples/eval_ja.txt`（あいさつ、驚き・疑問、テンション高め、数字と固有名詞、長め）。1文ずつ生成するには:
@@ -172,6 +192,7 @@ done < samples/eval_ja.txt
 | 2026-10-19 | 0.6B-Base-8bit | calm3 | 同じ台本、`--join-lines`、t=0.9 × seed=0,1,2 | – | – | – | – | 評価「あと一歩」：**語尾がかすれる**。calm3 自体の語尾はかすれていない（スペクトル平坦度 0.0004＝本体と同じ）ので生成時に入っている → 文末の雑音カット＋フェードアウト、`--top-p`、`--speed` を追加 |
 | 2026-10-19 | 0.6B-Base-8bit | calm3 | 上の後処理あり | – | – | – | – | かすれは減ったが残る。速さは 1.0 のままでよい |
 | 2026-10-19 | 0.6B-Base-8bit | calm3 | 語尾だけ変えた短い6文（`samples` 外、語尾テスト） | – | – | – | – | **短い文ではかすれない**。語尾の種類より、1回に読ませる長さが効いている。ただし短い文はイントネーションがやや不自然 → `--max-chars` を追加 |
+| 2026-10-19 | 0.6B-Base-8bit | calm3 | 同じ台本、`--join-lines`、`--max-chars` 28 と 20 | – | – | – | – | **どちらも微妙。日本人のイントネーションではない** → Qwen3-TTS 0.6B の日本語アクセントの限界と判断し、日本語専用の Irodori-TTS を試す |
 
 - メモリ 8GB の M1 では 0.6B でもピーク 6GB を超えるので、1.7B は現実的でない
 - 3回目の音声を分析すると、参照音声（ref_b）の声の高さの中央値は 282Hz だった。生成音声は 254〜326Hz と、文によって ±2.5 半音ほど上下にぶれていた。評価が最も低かった「数字」の文は、声が低めで抑揚の幅も狭く、間もほとんど無かった。→ 文ごとに分けて生成する、読み仮名の辞書、似かたスコアで良い seed を選ぶ、の3つを追加した
