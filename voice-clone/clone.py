@@ -109,6 +109,34 @@ def split_text(text, max_len=40, min_len=10):
     return [tuple(c) for c in merged]
 
 
+LINE_END = re.compile(r"(です|ます|でした|ました|ですよ|ですね|ですか|ません|んです|けど|[。！？!?])$")
+
+
+def join_lines(text, max_len=40):
+    """台本向け: 行の境目だけで区切り、文が終わる行（〜です／〜ました／？など）までを1回で読ませる。
+    行の途中の改行は読点にする。max_len を超えそうなら行の境目で区切る。
+
+    戻り値は split_text と同じ (チャンク, 後ろに入れる無音の秒数) のリスト。
+    """
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    chunks, buf = [], ""
+    for line in lines:
+        if buf and len(buf) + len(line) > max_len:
+            chunks.append([buf, PAUSE["comma"]])
+            buf = ""
+        if buf and buf[-1] not in SENTENCE_END + "、，,":
+            buf += "、"
+        buf += line
+        if LINE_END.search(line):
+            chunks.append([buf, PAUSE["sentence"]])
+            buf = ""
+    if buf:
+        chunks.append([buf, PAUSE["sentence"]])
+    if chunks:
+        chunks[-1][1] = 0.0
+    return [tuple(c) for c in chunks]
+
+
 def load_readings(path):
     """dict.tsv（表記<TAB>読み）を読む。# から始まる行は無視"""
     readings = []
@@ -147,6 +175,7 @@ def main():
     p.add_argument("--repetition-penalty", type=float, default=1.05)
     p.add_argument("--seed", default=str(defaults.get("seed", "0")), help="カンマ区切りで複数指定可（例: 0,1,2）。同じ値なら同じ結果になりやすい")
     p.add_argument("--no-split", action="store_true", help="文ごとに分けずに一度に生成する")
+    p.add_argument("--join-lines", action="store_true", help="改行を読点として扱い、行をまたぐ文をひと続きで読ませる（台本向け）")
     p.add_argument("--dict", default=str(ROOT / "dict.tsv"), help="読み仮名の辞書（表記<TAB>読み）")
     p.add_argument("--name", help="出力ファイル名（拡張子なし）。省略時は日時＋文章の先頭")
     p.add_argument("--play", action="store_true", help="生成後に afplay で 参照→生成 の順に再生")
@@ -168,7 +197,12 @@ def main():
     if not ref_path.exists():
         p.error(f"参照音声が見つかりません: {ref_path}")
     spoken = apply_readings(text, load_readings(Path(args.dict)))
-    chunks = [(spoken, 0.0)] if args.no_split else split_text(spoken)
+    if args.no_split:
+        chunks = [(spoken, 0.0)]
+    elif args.join_lines:
+        chunks = join_lines(spoken)
+    else:
+        chunks = split_text(spoken)
     temperatures = parse_list(args.temperature, float)
     seeds = parse_list(args.seed, int)
     variants = [(t, s) for t in temperatures for s in seeds]
