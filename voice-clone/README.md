@@ -118,7 +118,7 @@ cd ~/suzukana-voice-clone
 
 ```bash
 while IFS= read -r line; do
-  ./run.sh --ref-audio refs/ref_b.wav --ref-text-file refs/ref_b.txt --text "$line" --temperature 1.1 --seed 0,1,2
+  ./run.sh --ref-audio refs/ref_b.wav --ref-text-file refs/ref_b.txt --text "$line" --temperature 1.1 --seed 0,1,2 < /dev/null
 done < samples/eval_ja.txt
 ```
 
