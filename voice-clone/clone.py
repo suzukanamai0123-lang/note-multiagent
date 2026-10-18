@@ -138,6 +138,42 @@ def join_lines(text, max_len=40):
     return [tuple(c) for c in chunks]
 
 
+def tidy_segment(seg, sr, floor_db=-35.0, keep_head=0.03, keep_tail=0.08, fade=0.06):
+    """1文ぶんの音声の前後を整える。声が消えたあとに残る息・雑音を切り、最後を短くフェードアウトする。
+    floor_db はその文の最大音量からの相対値。"""
+    import numpy as np
+
+    hop = int(sr * 0.01)
+    if len(seg) < hop * 10:
+        return seg
+    frames = seg[: len(seg) // hop * hop].reshape(-1, hop)
+    db = 20 * np.log10(np.sqrt((frames ** 2).mean(axis=1)) + 1e-9)
+    loud = np.where(db > db.max() + floor_db)[0]
+    if len(loud) == 0:
+        return seg
+    start = max(0, loud[0] * hop - int(sr * keep_head))
+    end = min(len(seg), (loud[-1] + 1) * hop + int(sr * keep_tail))
+    out = seg[start:end].copy()
+    n = min(len(out), int(sr * fade))
+    out[-n:] *= np.linspace(1.0, 0.0, n, dtype=out.dtype)
+    return out
+
+
+def change_speed(audio, sr, speed):
+    """声の高さを変えずに速さだけ変える（ffmpeg の atempo）"""
+    import numpy as np
+
+    ffmpeg = shutil.which("ffmpeg") or str(Path.home() / "homebrew/bin/ffmpeg")
+    if not Path(ffmpeg).exists():
+        raise RuntimeError("--speed には ffmpeg が必要です")
+    raw = subprocess.run(
+        [ffmpeg, "-v", "error", "-f", "f32le", "-ar", str(sr), "-ac", "1", "-i", "-",
+         "-filter:a", f"atempo={speed}", "-f", "f32le", "-"],
+        input=audio.astype(np.float32).tobytes(), capture_output=True, check=True,
+    ).stdout
+    return np.frombuffer(raw, dtype=np.float32)
+
+
 def load_readings(path):
     """dict.tsv（表記<TAB>読み）を読む。# から始まる行は無視"""
     readings = []
@@ -171,10 +207,12 @@ def main():
     p.add_argument("--model", default=default_model())
     p.add_argument("--lang", default="japanese", help="言語（auto / japanese など）")
     p.add_argument("--temperature", default=str(defaults.get("temperature", "0.9")), help="カンマ区切りで複数指定可（例: 0.8,1.0）")
-    p.add_argument("--top-p", type=float, default=1.0)
+    p.add_argument("--top-p", type=float, default=float(defaults.get("top_p", 1.0)), help="小さくすると雑音になりやすい音を選びにくくなる（例: 0.9）")
     p.add_argument("--top-k", type=int, default=50)
     p.add_argument("--repetition-penalty", type=float, default=1.05)
     p.add_argument("--seed", default=str(defaults.get("seed", "0")), help="カンマ区切りで複数指定可（例: 0,1,2）。同じ値なら同じ結果になりやすい")
+    p.add_argument("--speed", type=float, default=float(defaults.get("speed", 1.0)), help="話す速さ（0.5〜2.0。0.9でゆっくり、1.1で速く。声の高さは変わらない）")
+    p.add_argument("--no-tidy", action="store_true", help="文末の雑音カットとフェードアウトをしない")
     p.add_argument("--no-split", action="store_true", help="文ごとに分けずに一度に生成する")
     p.add_argument("--join-lines", action="store_true", help="改行を読点として扱い、行をまたぐ文をひと続きで読ませる（台本向け）")
     p.add_argument("--dict", default=str(ROOT / "dict.tsv"), help="読み仮名の辞書（表記<TAB>読み）")
@@ -204,6 +242,8 @@ def main():
         chunks = join_lines(spoken)
     else:
         chunks = split_text(spoken)
+    if not 0.5 <= args.speed <= 2.0:
+        p.error("--speed は 0.5〜2.0 で指定してください")
     temperatures = parse_list(args.temperature, float)
     seeds = parse_list(args.seed, int)
     variants = [(t, s) for t in temperatures for s in seeds]
@@ -284,6 +324,8 @@ def main():
                 "top_k": args.top_k,
                 "repetition_penalty": args.repetition_penalty,
                 "seed": seed,
+                "speed": args.speed,
+                "tidy": not args.no_tidy,
             },
         )
         try:
@@ -315,10 +357,14 @@ def main():
                         break
                     retried += 1
                     print(f"  文 {i + 1} が長すぎるので作り直します（{len(seg) / sr:.1f}秒）: {chunk[:20]}")
+                if not args.no_tidy:
+                    seg = tidy_segment(seg, sr)
                 pieces += [seg, np.zeros(int(sr * pause), dtype=seg.dtype)]
             gen_sec = time.time() - t1
 
             audio = np.concatenate(pieces)
+            if args.speed != 1.0:
+                audio = change_speed(audio, sr, args.speed)
             audio_write(str(out_wav), audio, sr)
             similarity = speaker_similarity(audio) if ref_embedding is not None else None
             gap = np.zeros(int(sr * 0.7), dtype=audio.dtype)
