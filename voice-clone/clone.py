@@ -1,8 +1,8 @@
 """Phase 3: 参照音声（自分の声）＋文字起こしから、日本語テキストを自分の声で読み上げる。
 
 使い方:
-  ./run.sh --ref-audio refs/me.wav --ref-text "参照音声で話している内容" \
-           --text "こんにちは。今日は錫奏AIクローンボイスの動作確認をしています。"
+  ./run.sh --text "こんにちは。今日は錫奏AIクローンボイスの動作確認をしています。"
+  （参照音声・温度・seed は defaults.json の値。--ref ref_b などで切り替え）
 
 出力（outputs/ 以下、元の参照音声には一切書き込まない）:
   <日時>_<先頭の文字>.wav          生成音声
@@ -15,6 +15,7 @@ import hashlib
 import importlib.metadata
 import json
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -25,6 +26,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 OUT_DIR = ROOT / "outputs"
 HISTORY = OUT_DIR / "history.jsonl"
+
+
+def load_defaults():
+    """defaults.json（あれば）から既定の参照音声・温度・seed を読む"""
+    path = ROOT / "defaults.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return {}
 
 
 def default_model():
@@ -123,24 +132,32 @@ def parse_list(value, cast):
 
 def main():
     p = argparse.ArgumentParser(description="Qwen3-TTS (mlx-audio) で自分の声をクローンして読み上げる")
-    p.add_argument("--ref-audio", required=True, help="参照音声（自分の声のみ、5〜10秒、BGM/SEなし）")
+    defaults = load_defaults()
+    p.add_argument("--ref", default=defaults.get("ref"), help="refs/<名前>.wav と refs/<名前>.txt を使う（既定は defaults.json の ref）")
+    p.add_argument("--ref-audio", help="参照音声のパス（自分の声のみ、5〜10秒、BGM/SEなし）。--ref より優先")
     p.add_argument("--ref-text", help="参照音声の文字起こし（一字一句）")
     p.add_argument("--ref-text-file", help="文字起こしをファイルで渡す場合")
     p.add_argument("--text", help="読み上げる文章")
     p.add_argument("--text-file", help="読み上げる文章をファイルで渡す場合（改行ごとに分割して生成し、1つにつなぐ）")
     p.add_argument("--model", default=default_model())
     p.add_argument("--lang", default="japanese", help="言語（auto / japanese など）")
-    p.add_argument("--temperature", default="0.9", help="カンマ区切りで複数指定可（例: 0.8,1.0）")
+    p.add_argument("--temperature", default=str(defaults.get("temperature", "0.9")), help="カンマ区切りで複数指定可（例: 0.8,1.0）")
     p.add_argument("--top-p", type=float, default=1.0)
     p.add_argument("--top-k", type=int, default=50)
     p.add_argument("--repetition-penalty", type=float, default=1.05)
-    p.add_argument("--seed", default="0", help="カンマ区切りで複数指定可（例: 0,1,2）。同じ値なら同じ結果になりやすい")
+    p.add_argument("--seed", default=str(defaults.get("seed", "0")), help="カンマ区切りで複数指定可（例: 0,1,2）。同じ値なら同じ結果になりやすい")
     p.add_argument("--no-split", action="store_true", help="文ごとに分けずに一度に生成する")
     p.add_argument("--dict", default=str(ROOT / "dict.tsv"), help="読み仮名の辞書（表記<TAB>読み）")
     p.add_argument("--name", help="出力ファイル名（拡張子なし）。省略時は日時＋文章の先頭")
     p.add_argument("--play", action="store_true", help="生成後に afplay で 参照→生成 の順に再生")
     args = p.parse_args()
 
+    if not args.ref_audio:
+        if not args.ref:
+            p.error("--ref か --ref-audio が必要です")
+        args.ref_audio = str(ROOT / "refs" / f"{args.ref}.wav")
+        if not (args.ref_text or args.ref_text_file):
+            args.ref_text_file = str(ROOT / "refs" / f"{args.ref}.txt")
     ref_text = read_arg_or_file(args.ref_text, args.ref_text_file)
     text = read_arg_or_file(args.text, args.text_file)
     if not ref_text:
@@ -291,6 +308,10 @@ def main():
         print("似かたスコア順（1に近いほど参照音声に近い。最終判断は耳で）:")
         for score, out_wav in ranked:
             print(f"  {score:.3f}  {out_wav.name}" if score >= 0 else f"  -      {out_wav.name}")
+        best_wav = OUT_DIR / f"{stem}_best.wav"
+        if not best_wav.exists():
+            shutil.copyfile(ranked[0][1], best_wav)
+            print(f"一番スコアが高いもの: {best_wav.name}")
         if args.play:
             for _, out_wav in ranked:
                 print(f"再生: {out_wav.name}")
