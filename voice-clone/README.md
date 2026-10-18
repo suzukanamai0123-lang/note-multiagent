@@ -31,6 +31,7 @@ Mac（Apple Silicon）のローカルで動かす。費用はかからない。
   env.sh            保存先をこのフォルダ内に向ける設定（HF_HOME, uv の Python・キャッシュ）
   run.sh            生成コマンド（オフラインで実行）
   ref.sh            参照音声の切り出し＋文字起こし下書き（scripts/make_ref.py）
+  pick.sh           文ごとに似かたスコア最上位を選び、参照音声ごとに1本へつないで再生（scripts/pick_best.py）
   clone.py          生成スクリプト本体
   scripts/
     check_env.sh    Phase 1 の環境確認（読むだけ）
