@@ -114,6 +114,14 @@ cd ~/suzukana-voice-clone
 
 ## 試作の評価（Phase 5 の判断材料）
 
+評価用の5文は `samples/eval_ja.txt`（あいさつ、驚き・疑問、テンション高め、数字と固有名詞、長め）。1文ずつ生成するには:
+
+```bash
+while IFS= read -r line; do
+  ./run.sh --ref-audio refs/ref_b.wav --ref-text-file refs/ref_b.txt --text "$line" --temperature 1.1 --seed 0,1,2
+done < samples/eval_ja.txt
+```
+
 同じ参照音声で、性格の違う 5 文ほど（あいさつ、早口、固有名詞、感情が乗る文、長めの文）を生成して、`_compare.wav` を聞いて次の観点で付ける。
 
 | 観点 | 見ること | 1〜5 |
@@ -135,6 +143,7 @@ cd ~/suzukana-voice-clone
 | 日付 | モデル | 参照音声 | 設定 | 似かた | 読み | 自然さ | 速度 / ピークメモリ | メモ |
 |---|---|---|---|---|---|---|---|---|
 | 2026-10-19 | 0.6B-Base-8bit | ref_a（S001 0.40–9.39s） | t=0.9, seed=0 | 3 | 5 | 3 | 4.5秒を14.6秒（RTF 3.2）/ 6.09GB | 抑揚にAIっぽさが残る |
+| 2026-10-19 | 0.6B-Base-8bit | ref_a / ref_b（S007 0.00–6.98s）/ ref_c（S002 2.45–11.51s） | t=0.9,1.1 × seed=0,1 の12本 | – | – | – | – | **ref_b・t=1.1・seed=1 が一番本人らしい** |
 
 - メモリ 8GB の M1 では 0.6B でもピーク 6GB を超えるので、1.7B は現実的でない
 
