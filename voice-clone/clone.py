@@ -69,6 +69,7 @@ def append_history(record):
 
 
 SENTENCE_END = "。！？!?"
+MAX_RETRY = 2
 PAUSE = {"sentence": 0.35, "comma": 0.15, "line": 0.5}
 
 
@@ -235,6 +236,11 @@ def main():
         "chunks": [c for c, _ in chunks],
     }
 
+    def clear_cache():
+        fn = getattr(mx, "clear_cache", None) or getattr(getattr(mx, "metal", None), "clear_cache", None)
+        if fn:
+            fn()
+
     t0 = time.time()
     model = load_model(args.model)
     load_seconds = round(time.time() - t0, 2)
@@ -281,31 +287,38 @@ def main():
             },
         )
         try:
-            mx.random.seed(seed)
             t1 = time.time()
-            segments, peak = [], 0.0
-            for r in model.generate(
-                text="\n".join(c for c, _ in chunks),
-                ref_audio=mx.array(ref),
-                ref_text=ref_text,
-                lang_code=args.lang,
-                temperature=temperature,
-                top_p=args.top_p,
-                top_k=args.top_k,
-                repetition_penalty=args.repetition_penalty,
-                split_pattern="\n",
-            ):
-                segments.append(np.array(r.audio))
-                peak = max(peak, r.peak_memory_usage)
+            pieces, peak, retried = [], 0.0, 0
+            for i, (chunk, pause) in enumerate(chunks):
+                # 12.5 トークン/秒。ゆっくり読んでも1文字0.35秒+3秒に収まる長さを上限にして、暴走を止める
+                limit_sec = len(chunk) * 0.35 + 3
+                for attempt in range(MAX_RETRY + 1):
+                    mx.random.seed(seed + 1000 * i + 100000 * attempt)
+                    seg = []
+                    for r in model.generate(
+                        text=chunk,
+                        ref_audio=mx.array(ref),
+                        ref_text=ref_text,
+                        lang_code=args.lang,
+                        temperature=temperature,
+                        top_p=args.top_p,
+                        top_k=args.top_k,
+                        repetition_penalty=args.repetition_penalty,
+                        max_tokens=int(12.5 * limit_sec),
+                        split_pattern="\n",
+                    ):
+                        seg.append(np.array(r.audio))
+                        peak = max(peak, r.peak_memory_usage)
+                    seg = np.concatenate(seg)
+                    clear_cache()
+                    if len(seg) / sr < limit_sec * 0.95:
+                        break
+                    retried += 1
+                    print(f"  文 {i + 1} が長すぎるので作り直します（{len(seg) / sr:.1f}秒）: {chunk[:20]}")
+                pieces += [seg, np.zeros(int(sr * pause), dtype=seg.dtype)]
             gen_sec = time.time() - t1
 
-            if len(segments) == len(chunks):
-                pieces = []
-                for seg, (_, pause) in zip(segments, chunks):
-                    pieces += [seg, np.zeros(int(sr * pause), dtype=seg.dtype)]
-                audio = np.concatenate(pieces)
-            else:
-                audio = np.concatenate(segments)
+            audio = np.concatenate(pieces)
             audio_write(str(out_wav), audio, sr)
             similarity = speaker_similarity(audio) if ref_embedding is not None else None
             gap = np.zeros(int(sr * 0.7), dtype=audio.dtype)
@@ -316,7 +329,8 @@ def main():
                 status="ok",
                 output=str(out_wav),
                 compare=str(cmp_wav),
-                segments=len(segments),
+                segments=len(chunks),
+                retried=retried,
                 output_seconds=round(out_sec, 2),
                 generate_seconds=round(gen_sec, 2),
                 real_time_factor=round(gen_sec / out_sec, 2) if out_sec else None,
