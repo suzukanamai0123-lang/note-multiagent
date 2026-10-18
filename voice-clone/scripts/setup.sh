@@ -46,15 +46,25 @@ echo "使用モデル: $MODEL"
 
 echo
 echo "=== 2. uv ==="
-UV="$(command -v uv || true)"
-[ -z "$UV" ] && [ -x "$HOME/.local/bin/uv" ] && UV="$HOME/.local/bin/uv"
+UV=""
+if [ -x "$VC_DIR/.uv-bin/uv" ]; then
+  UV="$VC_DIR/.uv-bin/uv"
+elif command -v uv >/dev/null 2>&1; then
+  UV="$(command -v uv)"
+elif [ -x "$HOME/.local/bin/uv" ]; then
+  UV="$HOME/.local/bin/uv"
+fi
 if [ -z "$UV" ]; then
-  echo "uv が見つかりません。次のどちらかで入れられます:"
-  echo "  A) 公式インストーラ: curl -LsSf https://astral.sh/uv/install.sh | sh"
-  echo "     → ~/.local/bin/uv に1ファイル置くだけ。シェル設定に PATH が追記されることがあります"
-  echo "  B) Homebrew: brew install uv"
-  echo "このスクリプトは自動では入れません。入れてから再実行してください。"
-  exit 1
+  echo "uv が見つかりません。このフォルダの中（$VC_DIR/.uv-bin）にだけ入れられます。"
+  echo "  取得元: https://astral.sh/uv/install.sh（uv 公式、無料、MIT/Apache-2.0）"
+  echo "  シェル設定（.zshrc など）は書き換えない。Homebrew にも触れない"
+  if confirm "uv をこのフォルダに入れますか？"; then
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$VC_DIR/.uv-bin" UV_NO_MODIFY_PATH=1 sh
+    UV="$VC_DIR/.uv-bin/uv"
+  else
+    echo "中止しました。uv を入れてから再実行してください。"
+    exit 1
+  fi
 fi
 echo "$UV ($("$UV" --version))"
 

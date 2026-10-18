@@ -11,12 +11,14 @@ Mac（Apple Silicon）のローカルで動かす。費用はかからない。
 
 ## 動作条件
 
+試作機: MacBook Air M1 / メモリ 8GB / macOS 15.7.7 → 0.6B を使う
+
 | 項目 | 条件 |
 |---|---|
 | Mac | Apple Silicon（M1 以降） |
 | macOS | **14 (Sonoma) 以上**。mlx（0.31〜0.32系）の配布パッケージは macOS 14 以上向けしかない |
 | 空き容量 | 8GB 以上（実際に使うのは約 4〜6GB） |
-| uv | 必要。無ければ `scripts/setup.sh` が入れ方を示して止まる（勝手には入れない） |
+| uv | 必要。無ければ `scripts/setup.sh` が y/N で確認してから、このフォルダ内の `.uv-bin/` にだけ入れる（シェル設定・Homebrew には触れない） |
 | ffmpeg | 不要（WAV しか扱わない） |
 
 ## フォルダ構成
@@ -32,6 +34,7 @@ Mac（Apple Silicon）のローカルで動かす。費用はかからない。
   scripts/
     check_env.sh    Phase 1 の環境確認（読むだけ）
     setup.sh        Phase 2 の構築
+  .uv-bin/          uv 本体（無かった場合のみ）     ← setup.sh が作る
   .venv/            Python 3.12 の仮想環境         ← setup.sh が作る
   .uv-python/       uv が入れた Python 3.12        ← setup.sh が作る
   .uv-cache/        uv のキャッシュ                 ← setup.sh が作る
@@ -53,7 +56,7 @@ cd ~/suzukana-voice-clone
 # 2. 環境確認（読むだけ）
 bash scripts/check_env.sh
 
-# 3. 構築（モデルのダウンロード前に y/N を聞く）
+# 3. 構築（uv のインストールとモデルのダウンロードの前に y/N を聞く）
 bash scripts/setup.sh
 ```
 
@@ -141,4 +144,5 @@ cd ~/suzukana-voice-clone
 rm -rf ~/suzukana-voice-clone
 ```
 
-uv 自体を入れた場合だけ、別途 uv の削除が必要（公式インストーラなら `~/.local/bin/uv` と `~/.local/bin/uvx`）。
+`setup.sh` で入れた uv もこのフォルダ内（`.uv-bin/`）なので一緒に消える。
+既存の `~/.cache/huggingface` などフォルダ外のものは使わないし、消さない。

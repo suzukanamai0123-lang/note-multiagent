@@ -1,4 +1,5 @@
 .venv/
+.uv-bin/
 .uv-python/
 .uv-cache/
 hf-home/
