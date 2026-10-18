@@ -30,6 +30,7 @@ Mac（Apple Silicon）のローカルで動かす。費用はかからない。
 ~/suzukana-voice-clone/
   env.sh            保存先をこのフォルダ内に向ける設定（HF_HOME, uv の Python・キャッシュ）
   run.sh            生成コマンド（オフラインで実行）
+  ref.sh            参照音声の切り出し＋文字起こし下書き（scripts/make_ref.py）
   clone.py          生成スクリプト本体
   scripts/
     check_env.sh    Phase 1 の環境確認（読むだけ）
@@ -75,6 +76,15 @@ MODEL=mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit bash scripts/setup.sh
 - 長さ 5〜10 秒。文の途中で切れない区間を選ぶ
 - 文字起こしは**一字一句**合わせる（言い間違いもそのまま）。ずれると品質が落ちる
 - WAV がおすすめ。元ファイルはコピーして `refs/` に置く（元データは触らない）
+
+切り出しと文字起こしの下書きは `ref.sh` でできる（m4a などは ffmpeg で読む）:
+
+```bash
+./ref.sh --src ~/Downloads/S001.m4a --start 0.40 --end 9.39 --name ref_a
+afplay refs/ref_a.wav          # 聞きながら refs/ref_a.txt を一字一句直す
+```
+
+文字起こしには `mlx-community/Qwen3-ASR-0.6B-8bit`（Apache-2.0、1GB 前後）を使う。初回だけ y/N で確認してからダウンロードする。
 
 ## 実行
 
