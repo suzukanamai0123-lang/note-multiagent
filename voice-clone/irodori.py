@@ -68,6 +68,7 @@ def main():
     p.add_argument("--steps", type=int, help="生成ステップ数（少ないほど速く、品質は下がる）")
     p.add_argument("--join-lines", action="store_true", help="行をまたぐ台本向けの区切り方")
     p.add_argument("--max-chars", type=int, default=40, help="1回に読ませる最大文字数")
+    p.add_argument("--pause", type=float, default=1.0, help="文と文の間の長さの倍率（0.5で半分、0で間なし）")
     p.add_argument("--no-split", action="store_true")
     p.add_argument("--no-tidy", action="store_true")
     p.add_argument("--dict", default=str(ROOT / "dict.tsv"))
@@ -133,7 +134,7 @@ def main():
             "text": text,
             "spoken_text": spoken,
             "chunks": [c for c, _ in chunks],
-            "settings": {"seed": seed, "speed": args.speed, "instruct": args.instruct, "steps": args.steps,
+            "settings": {"seed": seed, "speed": args.speed, "pause": args.pause, "instruct": args.instruct, "steps": args.steps,
                          "tidy": not args.no_tidy},
         }
         try:
@@ -148,7 +149,7 @@ def main():
                 seg = np.concatenate(seg)
                 if not args.no_tidy:
                     seg = tidy_segment(seg, sr)
-                pieces += [seg, np.zeros(int(sr * pause), dtype=seg.dtype)]
+                pieces += [seg, np.zeros(int(sr * pause * args.pause), dtype=seg.dtype)]
             gen_sec = time.time() - t1
             audio = np.concatenate(pieces)
             audio_write(str(out_wav), audio, sr)

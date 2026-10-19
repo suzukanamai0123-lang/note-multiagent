@@ -214,6 +214,7 @@ def main():
     p.add_argument("--speed", type=float, default=float(defaults.get("speed", 1.0)), help="話す速さ（0.5〜2.0。0.9でゆっくり、1.1で速く。声の高さは変わらない）")
     p.add_argument("--no-tidy", action="store_true", help="文末の雑音カットとフェードアウトをしない")
     p.add_argument("--max-chars", type=int, default=int(defaults.get("max_chars", 40)), help="1回に読ませる最大文字数。長いほど流れは自然だが、後半がかすれやすい")
+    p.add_argument("--pause", type=float, default=1.0, help="文と文の間の長さの倍率（0.5で半分、0で間なし）")
     p.add_argument("--no-split", action="store_true", help="文ごとに分けずに一度に生成する")
     p.add_argument("--join-lines", action="store_true", help="改行を読点として扱い、行をまたぐ文をひと続きで読ませる（台本向け）")
     p.add_argument("--dict", default=str(ROOT / "dict.tsv"), help="読み仮名の辞書（表記<TAB>読み）")
@@ -326,6 +327,7 @@ def main():
                 "repetition_penalty": args.repetition_penalty,
                 "seed": seed,
                 "speed": args.speed,
+                "pause": args.pause,
                 "tidy": not args.no_tidy,
             },
         )
@@ -360,7 +362,7 @@ def main():
                     print(f"  文 {i + 1} が長すぎるので作り直します（{len(seg) / sr:.1f}秒）: {chunk[:20]}")
                 if not args.no_tidy:
                     seg = tidy_segment(seg, sr)
-                pieces += [seg, np.zeros(int(sr * pause), dtype=seg.dtype)]
+                pieces += [seg, np.zeros(int(sr * pause * args.pause), dtype=seg.dtype)]
             gen_sec = time.time() - t1
 
             audio = np.concatenate(pieces)
