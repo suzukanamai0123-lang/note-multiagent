@@ -117,6 +117,18 @@ def main():
 
     model = load_model(args.model)
     sr = model.sample_rate
+
+    # 参照クリップの特徴は1回の実行で変わらないので、最初の1回だけ計算して使い回す
+    encode = getattr(model, "_encode_ref_audios", None)
+    if encode is not None:
+        cache = {}
+
+        def cached_encode(audios, max_ref_seconds=None):
+            if max_ref_seconds not in cache:
+                cache[max_ref_seconds] = encode(audios, max_ref_seconds=max_ref_seconds)
+            return cache[max_ref_seconds]
+
+        model._encode_ref_audios = cached_encode
     print(f"参照クリップ {len(refs)} 本: {', '.join(r.name for r in refs)}")
 
     extra = {"duration_scale": 1.0 / args.speed}
