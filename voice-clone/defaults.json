@@ -1,5 +1,14 @@
 {
   "ref": "calm3",
   "temperature": "0.9",
-  "seed": "0,1,2"
+  "seed": "0,1,2",
+  "irodori": {
+    "ref": "calm_*",
+    "speed": 1.15,
+    "pause": 0.5,
+    "instruct": "テンポよく、軽快に話す。",
+    "join_lines": true,
+    "max_chars": 28,
+    "seed": "0"
+  }
 }

@@ -4,8 +4,8 @@
 文の分け方・読み仮名の辞書・文末の整え方・履歴の記録は clone.py と共通。
 
 使い方:
-  ./irodori.sh --ref "calm_*" --text-file 台本_特急.txt --join-lines
-  ./irodori.sh --ref "calm_*" --text "こんにちは。" --instruct "落ち着いた語り口で、近い距離感で話す"
+  ./irodori.sh --text-file 台本_特急.txt        （参照・速さ・間・話し方は defaults.json の irodori）
+  ./irodori.sh --text "こんにちは。" --instruct "落ち着いた語り口で、近い距離感で話す"
 """
 
 import argparse
@@ -18,6 +18,7 @@ from pathlib import Path
 
 from clone import (
     HISTORY,
+    load_defaults,
     OUT_DIR,
     ROOT,
     append_history,
@@ -57,18 +58,19 @@ def ensure_model(model_id):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Irodori-TTS で自分の声をクローンして読み上げる")
-    p.add_argument("--ref", required=True, help="refs/ 内の参照クリップ名。ワイルドカード可（例: \"calm_*\"）。カンマ区切りで複数指定も可")
+    d = load_defaults().get("irodori", {})
+    p = argparse.ArgumentParser(description="Irodori-TTS で自分の声をクローンして読み上げる（既定値は defaults.json の irodori）")
+    p.add_argument("--ref", default=d.get("ref"), help="refs/ 内の参照クリップ名。ワイルドカード可（例: \"calm_*\"）。カンマ区切りで複数指定も可")
     p.add_argument("--text", help="読み上げる文章")
     p.add_argument("--text-file", help="読み上げる文章をファイルで渡す場合")
-    p.add_argument("--instruct", help="話し方の指定（例: 落ち着いた語り口で、近い距離感で話す）")
+    p.add_argument("--instruct", default=d.get("instruct"), help="話し方の指定（例: 落ち着いた語り口で、近い距離感で話す）")
     p.add_argument("--model", default=DEFAULT_MODEL)
-    p.add_argument("--seed", default="0,1,2", help="カンマ区切りで複数指定可")
-    p.add_argument("--speed", type=float, default=1.0, help="話す速さ（0.5〜2.0）。モデルの長さ予測を調整する")
+    p.add_argument("--seed", default=str(d.get("seed", "0")), help="カンマ区切りで複数指定可")
+    p.add_argument("--speed", type=float, default=float(d.get("speed", 1.0)), help="話す速さ（0.5〜2.0）。モデルの長さ予測を調整する")
     p.add_argument("--steps", type=int, help="生成ステップ数（少ないほど速く、品質は下がる）")
-    p.add_argument("--join-lines", action="store_true", help="行をまたぐ台本向けの区切り方")
-    p.add_argument("--max-chars", type=int, default=40, help="1回に読ませる最大文字数")
-    p.add_argument("--pause", type=float, default=1.0, help="文と文の間の長さの倍率（0.5で半分、0で間なし）")
+    p.add_argument("--join-lines", action=argparse.BooleanOptionalAction, default=bool(d.get("join_lines", False)), help="行をまたぐ台本向けの区切り方（--no-join-lines で無効）")
+    p.add_argument("--max-chars", type=int, default=int(d.get("max_chars", 40)), help="1回に読ませる最大文字数")
+    p.add_argument("--pause", type=float, default=float(d.get("pause", 1.0)), help="文と文の間の長さの倍率（0.5で半分、0で間なし）")
     p.add_argument("--no-split", action="store_true")
     p.add_argument("--no-tidy", action="store_true")
     p.add_argument("--dict", default=str(ROOT / "dict.tsv"))
@@ -79,6 +81,8 @@ def main():
     text = read_arg_or_file(args.text, args.text_file)
     if not text:
         p.error("--text か --text-file が必要です")
+    if not args.ref:
+        p.error("--ref が必要です（defaults.json の irodori.ref でも指定できる）")
     if not 0.5 <= args.speed <= 2.0:
         p.error("--speed は 0.5〜2.0 で指定してください")
 
