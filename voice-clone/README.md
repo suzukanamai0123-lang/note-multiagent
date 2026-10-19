@@ -147,7 +147,7 @@ Qwen3-TTS は日本語のアクセントが不自然になりやすいため、�
 生成時間の目安は、40秒の台本で約400秒（音声の約10倍）。参照クリップの特徴は1回の実行で1度だけ計算する。遅いときは `--steps 20`（品質は少し下がる）を使う。
 
 初回はモデルのサイズとライセンスを表示して、y/N で確認してからダウンロードする。
-**ライセンスはダウンロード時の表示と Hugging Face のモデルカードで必ず確認すること**（Irodori-TTS の mlx-audio 側 README には MIT と書かれているが、v4.1 の重みのライセンスはこの環境からは確認できていない）。
+ライセンスは元モデルと同梱部品がすべて MIT（下の「ライセンス・利用上の注意」を参照）。
 
 ## 試作の評価（Phase 5 の判断材料）
 
@@ -181,7 +181,7 @@ done < samples/eval_ja.txt
 
 - **標準のエンジンは Irodori-TTS**（日本語専用）。Qwen3-TTS 0.6B は日本語のアクセントが不自然で、設定では直らなかった
 - 追加学習は引き続き不要と判断。品質は「台本と同じトーンの参照音声」「話し方の指定」「速さと間」で上がった
-- 残る確認事項: Irodori v4.1 の重みのライセンス（商用利用の可否）
+- Irodori-TTS と同梱部品（ModernBERT-ja、Semantic-DACVAE）はすべて MIT で、収益化している動画にも使える（著作権表示とライセンス文を残す条件のみ）
 
 ### 以前の判断（2026-10-19）
 
@@ -218,6 +218,10 @@ done < samples/eval_ja.txt
 | mlx-audio | MIT | リポジトリの LICENSE で確認済み |
 | mlx | MIT | Apple の公開ライセンス |
 | Qwen3-TTS Base（mlx-community の 8bit 版） | Apache-2.0 | 事前調査による。HF のモデルカードは Mac 側で再確認すること |
+| Irodori-TTS v4.1-Small（元モデル `Aratako/Irodori-TTS-v4.1-Small`） | MIT | 2026-10-19 に Mac から Hugging Face API で確認。変換版 `mlx-community/Irodori-TTS-v4.1-Small-8bit` はライセンス欄が空だが、元モデルの MIT を引き継ぐ |
+| ModernBERT-ja-310m（`sbintuitions/modernbert-ja-310m`、Irodori に同梱） | MIT | 同上で確認 |
+| Semantic-DACVAE-Japanese-32dim（`Aratako/Semantic-DACVAE-Japanese-32dim`、Irodori に同梱） | MIT | 同上で確認 |
+| Qwen3-ASR-0.6B（文字起こし、`ref.sh` で使用） | Apache-2.0 | 未再確認 |
 
 - Apache-2.0 / MIT はどちらも商用利用可。ライセンス表示と免責の条件は守る
 - クローンの対象は**本人の声に限る**。他人の声は使わない
