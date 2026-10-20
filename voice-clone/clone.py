@@ -138,8 +138,9 @@ def join_lines(text, max_len=40):
     return [tuple(c) for c in chunks]
 
 
-def tidy_segment(seg, sr, floor_db=-35.0, keep_head=0.03, keep_tail=0.08, fade=0.06):
-    """1文ぶんの音声の前後を整える。声が消えたあとに残る息・雑音を切り、最後を短くフェードアウトする。
+def tidy_segment(seg, sr, floor_db=-35.0, keep_head=0.03, keep_tail=0.08, fade=0.06, fade_in=0.015):
+    """1文ぶんの音声の前後を整える。声が消えたあとに残る息・雑音を切り、頭を短くフェードイン、最後を短くフェードアウトする
+    （頭を急に始めると「ぼふっ」という低い音になるため）。
     floor_db はその文の最大音量からの相対値。"""
     import numpy as np
 
@@ -154,9 +155,22 @@ def tidy_segment(seg, sr, floor_db=-35.0, keep_head=0.03, keep_tail=0.08, fade=0
     start = max(0, loud[0] * hop - int(sr * keep_head))
     end = min(len(seg), (loud[-1] + 1) * hop + int(sr * keep_tail))
     out = seg[start:end].copy()
+    n = min(len(out), int(sr * fade_in))
+    out[:n] *= np.linspace(0.0, 1.0, n, dtype=out.dtype)
     n = min(len(out), int(sr * fade))
     out[-n:] *= np.linspace(1.0, 0.0, n, dtype=out.dtype)
     return out
+
+
+def highpass(audio, sr, cutoff=70.0):
+    """声にはほとんど含まれない低い音（cutoff Hz 以下）を取り除く。「ぼふぼふ」という低い雑音対策"""
+    import numpy as np
+    from scipy.signal import butter, sosfiltfilt
+
+    if len(audio) < sr // 10:
+        return audio
+    sos = butter(4, cutoff, btype="highpass", fs=sr, output="sos")
+    return sosfiltfilt(sos, audio).astype(np.float32)
 
 
 def change_speed(audio, sr, speed):
@@ -366,6 +380,8 @@ def main():
             gen_sec = time.time() - t1
 
             audio = np.concatenate(pieces)
+            if not args.no_tidy:
+                audio = highpass(audio, sr)
             if args.speed != 1.0:
                 audio = change_speed(audio, sr, args.speed)
             audio_write(str(out_wav), audio, sr)

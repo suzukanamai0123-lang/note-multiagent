@@ -28,6 +28,7 @@ from clone import (
     parse_list,
     read_arg_or_file,
     slug,
+    highpass,
     split_text,
     tidy_segment,
 )
@@ -168,6 +169,8 @@ def main():
                 pieces += [seg, np.zeros(int(sr * pause * args.pause), dtype=seg.dtype)]
             gen_sec = time.time() - t1
             audio = np.concatenate(pieces)
+            if not args.no_tidy:
+                audio = highpass(audio, sr)
             audio_write(str(out_wav), audio, sr)
             out_sec = len(audio) / sr
             record.update(status="ok", output=str(out_wav), output_seconds=round(out_sec, 2),
